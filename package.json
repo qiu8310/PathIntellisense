@@ -1,9 +1,9 @@
 {
-  "name": "path-intellisense",
-  "displayName": "Path Intellisense",
+  "name": "mora-path",
+  "displayName": "mora-path",
   "description": "Visual Studio Code plugin that autocompletes filenames",
   "version": "1.4.2",
-  "publisher": "christian-kohler",
+  "publisher": "Mora",
   "engines": {
     "vscode": "^1.0.0"
   },

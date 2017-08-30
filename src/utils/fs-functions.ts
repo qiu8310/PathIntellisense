@@ -18,6 +18,27 @@ export function getChildrenOfPath(filepath: string, config: Config) {
         .catch(() => []);
 }
 
+export function getNpmModulesMappings() {
+    let pkg = require(path.join(workspace.rootPath, 'package.json'))
+    let arr = [pkg.dependencies, pkg.devDependencies]
+    return arr.reduce((result, item) => {
+        if (item) {
+            Object.keys(item).forEach(key => {
+                if (key.indexOf('@types') !== 0) result.push({key, npm: true, value: path.join(workspace.rootPath, 'node_modules', key)})
+            })
+        }
+        return result
+    }, [])
+}
+
+export function getNpmModulesPath() {
+    return getNpmModulesMappings().map(({key, value}) => new FileInfo(path.join(workspace.rootPath, 'node_modules'), key))
+}
+
+export function getMappingsPath(mappings) {
+    return mappings.map(({key, value}) => new FileInfo(path.dirname(value), path.basename(value)))
+}
+
 /**
  * @param fileName  {string} current filename the look up is done. Absolute path
  * @param text      {string} text in import string. e.g. './src/'

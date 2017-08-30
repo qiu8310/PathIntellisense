@@ -1,22 +1,13 @@
-import { CompletionItemProvider, TextDocument, Position, CompletionItem, workspace, Range } from 'vscode';
+import { CompletionItemProvider, TextDocument, Position, CompletionItem, workspace, Range, CompletionItemKind } from 'vscode';
 import { isImportExportOrRequire, getTextWithinString, importStringRange } from './utils/text-parser';
-import { getPath, extractExtension, Mapping } from './utils/fs-functions';
+import { getPath, extractExtension, Mapping, getNpmModulesPath, getNpmModulesMappings, getMappingsPath } from './utils/fs-functions';
 import { PathCompletionItem } from './completionItems/PathCompletionItem';
 import { UpCompletionItem } from './completionItems/UpCompletionItem';
 import { getConfig, Config, getTsConfig } from './utils/config';
-
-interface Request {
-    config?: Config,
-    fileName?: string,
-    textCurrentLine?: string,
-    textWithinString?: string,
-    importRange?: Range,
-    isImport?: boolean,
-    documentExtension?: string
-}
+import {Request} from './utils/request'
 
 export class PathIntellisense implements CompletionItemProvider {
-    
+
     private config: Config;
     private tsConfig: {};
 
@@ -28,20 +19,27 @@ export class PathIntellisense implements CompletionItemProvider {
             this.setConfig();
         });
     }
-    
+
     provideCompletionItems(document: TextDocument, position: Position): Thenable<CompletionItem[]> {
         const textCurrentLine = document.getText(document.lineAt(position).range);
+        const textToPosition = textCurrentLine.substring(0, position.character);
 
         const request: Request = {
-            config: this.config,
+            // 每次都重新获取 npm 的 mapping，因为有可能安装新包
+            config: {...this.config, mappings: this.config.mappings.concat(getNpmModulesMappings())},
+            document,
+            position,
             fileName: document.fileName,
             textCurrentLine,
+            quotationPosition: Math.max(textToPosition.lastIndexOf('\"'), textToPosition.lastIndexOf('\'')),
             textWithinString: getTextWithinString(textCurrentLine, position.character),
             importRange: importStringRange(textCurrentLine, position),
             isImport: isImportExportOrRequire(textCurrentLine),
             documentExtension: extractExtension(document)
         };
-        
+
+        // (this.shouldProvide(request) ? this.provide(request) : Promise.resolve([])).then(d => console.log(d))
+        // console.log(this.shouldProvide(request))
         return this.shouldProvide(request) ? this.provide(request) : Promise.resolve([]);
     }
 
@@ -50,7 +48,7 @@ export class PathIntellisense implements CompletionItemProvider {
         const startsWithDot = typedAnything && request.textWithinString[0] === '.';
         const startsWithMapping = typedAnything && request.config.mappings.some(mapping => request.textWithinString.indexOf(mapping.key) === 0);
 
-        if (request.isImport && (startsWithDot || startsWithMapping)) {
+        if (request.isImport && (startsWithDot || startsWithMapping || request.textWithinString === '')) {
             return true;
         }
 
@@ -61,12 +59,32 @@ export class PathIntellisense implements CompletionItemProvider {
         return false;
     }
 
+    // 从 NpmIntellisense 中提取出来的函数
+    importStringRange(request: Request) : Range {
+        let textCurrentLine = request.document.lineAt(request.position).text
+        let cursorLine = request.position.line
+        let cursorPosition = request.position.character
+
+        const textToPosition = textCurrentLine.substring(0, cursorPosition);
+        const quotationPosition = Math.max(textToPosition.lastIndexOf('\"'), textToPosition.lastIndexOf('\''));
+        return new Range(cursorLine, quotationPosition + 1, cursorLine, cursorPosition)
+    }
+
     provide(request: Request) {
-        const path = getPath(request.fileName, request.textWithinString, request.config.absolutePathToWorkspace ? workspace.rootPath : null, request.config.mappings);
-        
-        return this.getChildrenOfPath(path, request.config).then(children => ([
+        const dir = getPath(request.fileName, request.textWithinString, request.config.absolutePathToWorkspace ? workspace.rootPath : null, request.config.mappings);
+        let getItem = (fileinfo) => new PathCompletionItem(fileinfo, request)
+
+        if (request.textWithinString === '') {
+            request.importRange = this.importStringRange(request)
+            return Promise.resolve([
+                new UpCompletionItem(),
+                ...getMappingsPath(request.config.mappings).map(getItem)
+            ])
+        }
+
+        return this.getChildrenOfPath(dir, request.config).then(children => ([
             new UpCompletionItem(),
-            ...children.map(child => new PathCompletionItem(child, request.importRange, request.isImport, request.documentExtension, request.config))
+            ...children.map(fi => getItem(fi))
         ]));
     }
 
