@@ -96,6 +96,9 @@ function readdirPromise(path: string) {
 }
 
 function filterFile(filepath: string, filename: string, config: Config) {
+    if (filename.endsWith('.d.ts')) {
+        return false
+    }
     if (config.showHiddenFiles) {
         return true;
     }

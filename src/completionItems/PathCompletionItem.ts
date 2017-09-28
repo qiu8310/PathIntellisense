@@ -39,8 +39,9 @@ export class PathCompletionItem extends CompletionItem {
 
         if (
             extension !== documentExtension
-            || 'ts' === extension && ['tsx'].indexOf(documentExtension) >= 0
-            || 'js' === extension && ['jsx'].indexOf(documentExtension) >= 0
+            && !(documentExtension === 'tsx' && ['ts', 'js'].indexOf(extension) >= 0)
+            && !(documentExtension === 'ts' && ['js'].indexOf(extension) >= 0)
+            && !(documentExtension === 'jsx' && ['js'].indexOf(extension) >= 0)
         ) {
             return;
         }
