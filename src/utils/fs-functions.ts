@@ -53,7 +53,8 @@ export function getPath(fileName: string, text: string, rootPath?: string, mappi
 
     // Search a mapping for the current text. First mapping is used where text starts with mapping
     const mapping = mappings && mappings.reduce((prev, curr) => {
-        return prev || (normalizedText.startsWith(curr.key) && curr)
+        let start = curr.key.endsWith(path.sep) ? curr.key : curr.key + path.sep // 保证后面带一个路径，否则容易误操作
+        return prev || (normalizedText.startsWith(start) && curr)
     }, undefined);
 
     if (mapping) {
